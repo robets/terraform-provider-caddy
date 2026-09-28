@@ -47,3 +47,38 @@ provider "caddy" {
   }
 }
 ```
+
+## Manage an individual HTTP route
+
+`caddy_server_route` owns one route on an existing HTTP server. It appends a
+route with a globally unique Caddy `@id`, then reads, updates, and deletes only
+that ID. Other routes on the server are not replaced. Routes created this way
+follow existing server routes; use an explicit path or host matcher to avoid
+catching unrelated traffic.
+
+```hcl
+resource "caddy_server_route" "app" {
+  server_name = "edge"
+  route_id    = "tofu-app"
+
+  match {
+    path = ["/app/*"]
+  }
+  handle {
+    reverse_proxy {
+      upstream {
+        dial = "app:8080"
+      }
+    }
+  }
+}
+```
+
+`server_name` and `route_id` are immutable. Import an existing route by its
+`@id`, for example `tofu import caddy_server_route.app tofu-app`; the provider
+finds its owning HTTP server during refresh. The route must already exist under
+an HTTP server, and its handlers must use shapes supported by this provider.
+A remote 404 clears state on refresh; deletion is idempotent.
+
+Run the live route contract against disposable Caddy and OpenTofu with
+`bash tests/route-contract.sh` (requires Docker, OpenTofu, `curl`, and `jq`).
