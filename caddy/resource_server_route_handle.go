@@ -209,7 +209,7 @@ func ServerRouteHandlerInto(handle caddyapi.HandleMarshal) map[string]interface{
 func FromStaticResponse(r caddyapi.StaticResponse) map[string]interface{} {
 	return map[string]interface{}{
 		"status_code": r.StatusCode,
-		"headers":     IntoMapListString(r.Headers),
+		"header":      IntoMapListString(r.Headers),
 		"body":        r.Body,
 		"close":       r.Close,
 	}
@@ -224,7 +224,7 @@ func FromReverseProxy(r caddyapi.ReverseProxy) map[string]interface{} {
 	}
 
 	return map[string]interface{}{
-		"upstreams": upstreams,
+		"upstream": upstreams,
 	}
 }
 

@@ -186,3 +186,91 @@ func (_m *Client) UpdateServerRoutes(id string, routes []caddyapi.Route) error {
 
 	return r0
 }
+
+// CreateRoute provides a mock function with given fields: serverName, route
+func (_m *Client) CreateRoute(serverName string, route caddyapi.Route) error {
+	ret := _m.Called(serverName, route)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(string, caddyapi.Route) error); ok {
+		r0 = rf(serverName, route)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// GetRouteByID provides a mock function with given fields: id
+func (_m *Client) GetRouteByID(id string) (*caddyapi.Route, error) {
+	ret := _m.Called(id)
+
+	var r0 *caddyapi.Route
+	if rf, ok := ret.Get(0).(func(string) *caddyapi.Route); ok {
+		r0 = rf(id)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*caddyapi.Route)
+		}
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(string) error); ok {
+		r1 = rf(id)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// UpdateRouteByID provides a mock function with given fields: id, route
+func (_m *Client) UpdateRouteByID(id string, route caddyapi.Route) error {
+	ret := _m.Called(id, route)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(string, caddyapi.Route) error); ok {
+		r0 = rf(id, route)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// DeleteRouteByID provides a mock function with given fields: id
+func (_m *Client) DeleteRouteByID(id string) error {
+	ret := _m.Called(id)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(string) error); ok {
+		r0 = rf(id)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// GetServers provides a mock function with given fields:
+func (_m *Client) GetServers() (map[string]caddyapi.Server, error) {
+	ret := _m.Called()
+
+	var r0 map[string]caddyapi.Server
+	if rf, ok := ret.Get(0).(func() map[string]caddyapi.Server); ok {
+		r0 = rf()
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(map[string]caddyapi.Server)
+		}
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func() error); ok {
+		r1 = rf()
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
