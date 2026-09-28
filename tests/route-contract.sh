@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
 # Contract battery for the caddy_server_route resource, run against a
-# disposable Caddy (the same pinned image the foundation build uses) plus
-# the local OpenTofu client via dev_overrides. It proves the properties the
+# disposable Caddy image and OpenTofu with a local provider dev_overrides configuration. It proves the properties the
 # @id-scoped design exists for: create/read/empty plan/update/delete/import,
-# remote disappearance re-creation, duplicate @id refusal, preservation of
-# foreign and control-plane routes across provider updates (no clobber),
+# remote disappearance re-creation, preservation of unmanaged routes
+# across provider updates (no clobber),
 # and two independent roots sharing one server. See README.md.
 set -euo pipefail
 
@@ -69,11 +68,11 @@ provider_installation {
 }
 EOF
 
-# --- disposable Caddy with a control-plane-owned base route ----------------
+# --- disposable Caddy with a pre-existing route ----------------
 cat > "$work/api/edge.json" <<'EOF'
 {"admin":{"listen":"0.0.0.0:2019"},
  "apps":{"http":{"servers":{"edge":{"listen":[":9091"],"routes":[
-   {"@id":"cp-base","match":[{"path":["/cp-route"]}],"handle":[{"handler":"static_response","body":"cp-base"}]}]}}}}}
+   {"@id":"existing-route","match":[{"path":["/existing"]}],"handle":[{"handler":"static_response","body":"existing-route"}]}]}}}}}
 EOF
 docker rm -f "$ctr" >/dev/null 2>&1 || true
 docker run -d --name "$ctr" \
@@ -165,12 +164,12 @@ resource "caddy_server_route" "c" {
 }
 EOF
 
-# --- 1. create + serve + control-plane route intact --------------------------
+# --- 1. create + serve + pre-existing route intact --------------------------
 expect 0 "$(tofu_in rootA apply -input=false -auto-approve >/dev/null 2>&1; echo $?)" "rootA create"
 expect 200 "$(admin_code GET /id/tf-route-a)" "created route-a readable by @id"
 expect RA1 "$(serve /tf-a)" "route-a serves"
 expect RB1 "$(serve /tf-b)" "route-b serves"
-expect cp-base "$(serve /cp-route)" "control-plane base route untouched"
+expect existing-route "$(serve /existing)" "pre-existing route untouched"
 
 # --- 2. empty plan -----------------------------------------------------------
 expect 0 "$(tofu_in rootA plan -detailed-exitcode -input=false >/dev/null 2>&1; echo $?)" "empty plan after create"
@@ -180,7 +179,7 @@ expect 0 "$(tofu_in rootB apply -input=false -auto-approve >/dev/null 2>&1; echo
 expect RC1 "$(serve /tf-c)" "rootB route serves"
 expect 0 "$(tofu_in rootA plan -detailed-exitcode -input=false >/dev/null 2>&1; echo $?)" "rootA plan still empty after rootB"
 expect 0 "$(tofu_in rootB plan -detailed-exitcode -input=false >/dev/null 2>&1; echo $?)" "rootB empty plan"
-expect '["cp-base","tf-route-a","tf-route-b","tf-route-c"]' "$(order | jq -c '.[0:1] + (.[1:] | sort)')" "append-only placement keeps base route first"
+expect '["existing-route","tf-route-a","tf-route-b","tf-route-c"]' "$(order | jq -c '.[0:1] + (.[1:] | sort)')" "append-only placement keeps pre-existing route first"
 created_order=$(order)
 
 # --- 4. foreign route must survive provider updates (no clobber) ------------
@@ -218,14 +217,14 @@ expect 0 "$(tofu_in rootImport destroy -input=false -auto-approve >/dev/null 2>&
 expect 404 "$(admin_code GET /id/tf-route-c)" "route-c gone"
 expect 0 "$(tofu_in rootB destroy -input=false -auto-approve >/dev/null 2>&1; echo $?)" "destroy is idempotent after remote disappearance"
 
-# --- 9. final: provider routes gone, foreign + control-plane intact ----------
+# --- 9. final: provider routes gone, other routes intact ----------
 expect 0 "$(tofu_in rootA destroy -input=false -auto-approve >/dev/null 2>&1; echo $?)" "rootA destroy"
 expect 404 "$(admin_code GET /id/tf-route-a)" "route-a deleted"
 expect 404 "$(admin_code GET /id/tf-route-b)" "route-b deleted"
-expect cp-base "$(serve /cp-route)" "control-plane route survives destroy"
+expect existing-route "$(serve /existing)" "pre-existing route survives destroy"
 expect FX "$(serve /foreign)" "foreign route survives destroy"
 expect '["edge"]' "$(body /config/apps/http/servers/ | jq -c 'keys')" "server itself untouched"
-expect '["cp-base","foreign-x"]' "$(order)" "only non-provider routes remain"
+expect '["existing-route","foreign-x"]' "$(order)" "only unmanaged routes remain"
 
 if ((failures != 0)); then
   printf 'route-contract: %d assertion(s) failed\n' "$failures" >&2

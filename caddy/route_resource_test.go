@@ -280,7 +280,7 @@ func TestRouteResourceNameValidation(t *testing.T) {
 		_, errs := res.Schema["route_id"].ValidateFunc(bad, "route_id")
 		assert.NotEmpty(t, errs, "route_id %q must be rejected", bad)
 	}
-	for _, good := range []string{"a", "cp-contract", "root-a.app_1"} {
+	for _, good := range []string{"a", "example-route", "root-a.app_1"} {
 		_, errs := res.Schema["route_id"].ValidateFunc(good, "route_id")
 		assert.Empty(t, errs, "route_id %q must be accepted", good)
 	}

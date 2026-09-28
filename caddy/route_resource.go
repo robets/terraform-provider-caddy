@@ -27,10 +27,10 @@ var caddyNameRegexp = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.\-]*$`)
 // replacing it in place. The shared routes array is never read, modified
 // and re-PUT as a whole, so roots can independently manage different
 // routes on the same server without clobbering each other or routes owned
-// by the control-plane base config.
+// configured outside this resource.
 //
 // Placement semantics: creation always appends (lowest match priority, so
-// control-plane base routes keep precedence); updates preserve position.
+// existing routes keep precedence); updates preserve position.
 // Caddy has no non-clobbering indexed insert (POST routes/{index} also
 // appends in 2.11), so no index knob is offered.
 //
