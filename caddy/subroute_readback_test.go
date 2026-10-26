@@ -24,35 +24,40 @@ func TestSubrouteReadback(t *testing.T) {
 					handler = caddyapi.HandleMarshal{Handle: subroute}
 				}
 
-				for _, sm := range []map[string]*schema.Schema{
-					ServerRouteResource().Schema,
-					ServerRoute{depth}.Schema().BuildResource().Schema,
+				for _, tc := range []struct {
+					name   string
+					schema map[string]*schema.Schema
+				}{
+					{"resource_schema", ServerRouteResource().Schema},
+					{"exact_depth_schema", ServerRoute{depth}.Schema().BuildResource().Schema},
 				} {
-					d := schema.TestResourceDataRaw(t, sm, nil)
-					d.SetId("nested-route")
-					if err := d.Set("handle", ServerRouteHandlersInto([]caddyapi.HandleMarshal{handler})); err != nil {
-						t.Fatal(err)
-					}
-					got := ServerRouteHandlersFrom(GetObjectList(d, "handle"))
-					wantJSON, err := json.Marshal([]caddyapi.HandleMarshal{handler})
-					if err != nil {
-						t.Fatal(err)
-					}
-					gotJSON, err := json.Marshal(got)
-					if err != nil {
-						t.Fatal(err)
-					}
-					if string(gotJSON) != string(wantJSON) {
-						t.Fatalf("readback changed handler: got %s, want %s", gotJSON, wantJSON)
-					}
-					// A second read must retain the SDK's schema-derived set hashes.
-					before := d.State().Attributes
-					if err := d.Set("handle", ServerRouteHandlersInto(got)); err != nil {
-						t.Fatal(err)
-					}
-					if !reflect.DeepEqual(before, d.State().Attributes) {
-						t.Fatal("handler state changed on repeated read")
-					}
+					t.Run(tc.name, func(t *testing.T) {
+						d := schema.TestResourceDataRaw(t, tc.schema, nil)
+						d.SetId("nested-route")
+						if err := d.Set("handle", ServerRouteHandlersInto([]caddyapi.HandleMarshal{handler})); err != nil {
+							t.Fatal(err)
+						}
+						got := ServerRouteHandlersFrom(GetObjectList(d, "handle"))
+						wantJSON, err := json.Marshal([]caddyapi.HandleMarshal{handler})
+						if err != nil {
+							t.Fatal(err)
+						}
+						gotJSON, err := json.Marshal(got)
+						if err != nil {
+							t.Fatal(err)
+						}
+						if string(gotJSON) != string(wantJSON) {
+							t.Fatalf("readback changed handler: got %s, want %s", gotJSON, wantJSON)
+						}
+						// A second read must retain the SDK's schema-derived set hashes.
+						before := d.State().Attributes
+						if err := d.Set("handle", ServerRouteHandlersInto(got)); err != nil {
+							t.Fatal(err)
+						}
+						if !reflect.DeepEqual(before, d.State().Attributes) {
+							t.Fatal("handler state changed on repeated read")
+						}
+					})
 				}
 			})
 		}
