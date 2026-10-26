@@ -24,8 +24,10 @@ However, this is not recommended as it is not secure.
 
 ### Bearer-token authentication
 
-For an admin endpoint configured to accept bearer tokens, set
-`CADDY_BEARER_TOKEN` in the provider process environment and configure its URL:
+The provider only sends an HTTP bearer token; it does not add authentication to
+stock Caddy admin. A compatible server-side authenticator or reverse proxy must
+already be configured. Set `CADDY_BEARER_TOKEN` in the provider process
+environment and configure its URL:
 
 ```hcl
 provider "caddy" {
@@ -102,7 +104,7 @@ provider "caddy" {
 <a id="nestedblock--ssh"></a>
 ### Nested Schema for `ssh`
 
-SSH Configuration to proxy caddy API access through. Recommended if accessing caddy API remotely as caddy provides no authentication
+SSH can provide authenticated, encrypted access to the Caddy admin API without exposing the endpoint directly.
 
 Required:
 

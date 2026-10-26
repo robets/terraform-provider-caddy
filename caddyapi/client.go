@@ -25,7 +25,9 @@ func URLFromID(id string) string {
 
 // Client represents a Caddy API Client
 type Client struct {
-	client *resty.Client
+	client                *resty.Client
+	bearerTokenEnabled    bool
+	originalCheckRedirect func(*http.Request, []*http.Request) error
 }
 
 type DialFunc = func(network, addr string) (net.Conn, error)
@@ -51,7 +53,8 @@ func NewUnixClient(socket string, dial DialFunc) *Client {
 }
 
 // SetBearerToken configures authentication on every request, including snapshot
-// reads and conditional mutation retries. Call before using the client.
+// reads and conditional mutation retries. An empty token disables authentication
+// and restores the previous redirect policy. Do not call concurrently with requests.
 func (c *Client) SetBearerToken(token string) error {
 	for i := 0; i < len(token); i++ {
 		if token[i] <= ' ' || token[i] >= 0x7f {
@@ -59,9 +62,22 @@ func (c *Client) SetBearerToken(token string) error {
 		}
 	}
 	if token == "" {
+		c.client.Header.Del("Authorization")
+		if c.bearerTokenEnabled {
+			c.client.GetClient().CheckRedirect = c.originalCheckRedirect
+			c.originalCheckRedirect = nil
+			c.bearerTokenEnabled = false
+		}
 		return nil
 	}
 	c.client.SetHeader("Authorization", "Bearer "+token)
+	if c.bearerTokenEnabled {
+		return nil
+	}
+	// Capture only on the transition to authenticated requests, never on token
+	// replacement, so clearing cannot restore our own authentication policy.
+	c.originalCheckRedirect = c.client.GetClient().CheckRedirect
+	c.bearerTokenEnabled = true
 	// net/http's default policy can retain Authorization across different
 	// ports and subdomains. Refuse any origin change instead, including HTTPS
 	// downgrades. The header is set before redirects, never by a transport hook.
