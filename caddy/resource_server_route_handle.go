@@ -216,7 +216,7 @@ func FromStaticResponse(r caddyapi.StaticResponse) map[string]interface{} {
 }
 
 func FromReverseProxy(r caddyapi.ReverseProxy) map[string]interface{} {
-	upstreams := make([]map[string]interface{}, len(r.Upstreams))
+	upstreams := make([]interface{}, len(r.Upstreams))
 	for i, upstream := range r.Upstreams {
 		upstreams[i] = map[string]interface{}{
 			"dial": upstream.Dial,
