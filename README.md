@@ -13,6 +13,13 @@ This is the default caddy uses and the default that this provider will use too.
 
 However, this is not recommended as it is not secure.
 
+### Bearer-token authentication
+
+For an admin endpoint that accepts bearer authentication, configure an HTTPS
+`host` and supply the token through `CADDY_BEARER_TOKEN` or `bearer_token`.
+See the [provider documentation](docs/index.md#bearer-token-authentication) for
+configuration and credential handling.
+
 ### Unix Sockets
 
 The recommended method is to use unix sockets. Modify your caddy config to use the admin endpoint `unix//path/to/admin.sock`.

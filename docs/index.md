@@ -22,6 +22,42 @@ This is the default caddy uses and the default that this provider will use too.
 
 However, this is not recommended as it is not secure.
 
+### Bearer-token authentication
+
+The provider only sends an HTTP bearer token; it does not add authentication to
+stock Caddy admin. A compatible server-side authenticator or reverse proxy must
+already be configured. Set `CADDY_BEARER_TOKEN` in the provider process
+environment and configure its URL:
+
+```hcl
+provider "caddy" {
+  host = "https://localhost:2020"
+}
+```
+
+The optional, sensitive `bearer_token` argument overrides `CADDY_BEARER_TOKEN`.
+An explicit `bearer_token = ""` disables bearer authentication, even when the
+environment variable is set. If the argument is omitted and the environment
+variable is unset or empty, no Authorization header is sent. Nonempty tokens
+must contain only visible ASCII characters without whitespace; no JWT format
+is required.
+
+The token is sent on every API request. The provider does not issue or renew
+tokens or configure the endpoint to accept them. Use HTTPS for remote endpoints;
+normal certificate and hostname verification remain enabled. Bearer tokens also
+work over Unix sockets and SSH, without replacing SSH authentication or host-key
+verification. Authenticated redirects must keep the same scheme, host, and port.
+
+Prefer environment input over embedding tokens in HCL. Sensitive values are
+masked in normal CLI output, not encrypted. Protect environment access, saved
+plans, state, and logs; avoid debug/trace logging with real tokens. The provider
+does not copy its token into managed resource state, but configuration variables
+and outputs can still persist it.
+
+Authenticated errors omit response bodies, server reason phrases, redirect URLs,
+and raw request error details to avoid exposing credentials. HTTP status codes
+and common redirect, timeout, cancellation, or TLS failures are still reported.
+
 ### Unix Sockets
 
 The recommended method is to use unix sockets. Modify your caddy config to use the admin endpoint `unix//path/to/admin.sock`.
@@ -61,13 +97,14 @@ provider "caddy" {
 
 ### Optional
 
+- **bearer_token** (String, Sensitive) Token for [bearer authentication](#bearer-token-authentication).
 - **host** (String) http or unix socket to act as the caddy admin API endpoint
 - **ssh** (Block Set) (see [below for nested schema](#nestedblock--ssh))
 
 <a id="nestedblock--ssh"></a>
 ### Nested Schema for `ssh`
 
-SSH Configuration to proxy caddy API access through. Recommended if accessing caddy API remotely as caddy provides no authentication
+SSH can provide authenticated, encrypted access to the Caddy admin API without exposing the endpoint directly.
 
 Required:
 

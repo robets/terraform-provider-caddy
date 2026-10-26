@@ -29,10 +29,16 @@ func providerConfigurer(d *schema.ResourceData) (interface{}, error) {
 		return nil, err
 	}
 
+	var client *caddyapi.Client
 	if host.Scheme == "unix" {
-		return caddyapi.NewUnixClient(host.Path, dial), nil
+		client = caddyapi.NewUnixClient(host.Path, dial)
+	} else {
+		client = caddyapi.NewClient(host.String(), dial)
 	}
-	return caddyapi.NewClient(host.String(), dial), nil
+	if err := client.SetBearerToken(GetString(d, "bearer_token")); err != nil {
+		return nil, err
+	}
+	return client, nil
 }
 
 var conns []io.Closer
