@@ -193,8 +193,11 @@ func ServerRouteHandlerInto(handle caddyapi.HandleMarshal) map[string]interface{
 		key = "templates"
 		val = FromTemplates(h.(caddyapi.Templates))
 	case caddyapi.Subroute:
-		key = "subroute"
-		val = FromSubroute(h.(caddyapi.Subroute))
+		// Let ResourceData.Set normalize and hash recursive blocks using the
+		// destination schema, including its remaining subroute nesting depth.
+		return map[string]interface{}{
+			"subroute": []interface{}{FromSubroute(h.(caddyapi.Subroute))},
+		}
 	default:
 		panic("unexpected handler type")
 	}
