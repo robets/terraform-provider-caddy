@@ -24,8 +24,8 @@ However, this is not recommended as it is not secure.
 
 ### Bearer-token authentication
 
-For an admin endpoint that accepts arbitrary supplied bearer tokens, set
-`CADDY_BEARER_TOKEN` in the provider process environment:
+For an admin endpoint configured to accept bearer tokens, set
+`CADDY_BEARER_TOKEN` in the provider process environment and configure its URL:
 
 ```hcl
 provider "caddy" {
@@ -33,30 +33,28 @@ provider "caddy" {
 }
 ```
 
-Alternatively, set the optional sensitive `bearer_token` provider argument.
-Explicit input takes precedence over the environment, including an explicit
-empty string, which disables authentication. Omitted input and an unset/empty
-environment variable preserve unauthenticated behavior. Nonempty tokens must
-contain visible ASCII characters without whitespace; no JWT or issuer-specific
-format is required. The header is sent on every API request, including snapshot
-reads and conditional retries. Token issuance, renewal, and server-side token
-acceptance are outside the provider's scope.
+The optional, sensitive `bearer_token` argument overrides `CADDY_BEARER_TOKEN`.
+An explicit `bearer_token = ""` disables bearer authentication, even when the
+environment variable is set. If the argument is omitted and the environment
+variable is unset or empty, no Authorization header is sent. Nonempty tokens
+must contain only visible ASCII characters without whitespace; no JWT format
+is required.
 
-Use HTTPS for remote endpoints; normal certificate and hostname verification
-remain enabled. Existing Unix/SSH transports are unchanged. Authenticated
-redirects to a different scheme, host, or port are rejected before sending the
-redirected request; same-origin redirects are allowed.
+The token is sent on every API request. The provider does not issue or renew
+tokens or configure the endpoint to accept them. Use HTTPS for remote endpoints;
+normal certificate and hostname verification remain enabled. Bearer tokens also
+work over Unix sockets and SSH, without replacing SSH authentication or host-key
+verification. Authenticated redirects must keep the same scheme, host, and port.
 
-Prefer environment input rather than putting credentials in HCL. `Sensitive`
-masks normal CLI presentation; it is not encryption or magic secret storage.
-Variables, saved plans, outputs, state and debug/trace logs may still persist
-secrets; protect them and avoid debug/trace logging with real tokens. The
-provider does not copy its token into managed resource state. Authenticated HTTP
-error diagnostics include only the method, numeric status, and standard status
-text. Request failures report known redirect, timeout, cancellation, or TLS
-classifications and otherwise omit raw error details. Response bodies, server
-reason phrases, and redirect URLs are not included because they may echo
-credentials. Unauthenticated diagnostics are unchanged.
+Prefer environment input over embedding tokens in HCL. Sensitive values are
+masked in normal CLI output, not encrypted. Protect environment access, saved
+plans, state, and logs; avoid debug/trace logging with real tokens. The provider
+does not copy its token into managed resource state, but configuration variables
+and outputs can still persist it.
+
+Authenticated errors omit response bodies, server reason phrases, redirect URLs,
+and raw request error details to avoid exposing credentials. HTTP status codes
+and common redirect, timeout, cancellation, or TLS failures are still reported.
 
 ### Unix Sockets
 
@@ -97,7 +95,7 @@ provider "caddy" {
 
 ### Optional
 
-- **bearer_token** (String, Sensitive) Optional bearer token. Defaults to `CADDY_BEARER_TOKEN` when omitted; explicit input wins, and an explicit empty string disables bearer authentication.
+- **bearer_token** (String, Sensitive) Token for [bearer authentication](#bearer-token-authentication).
 - **host** (String) http or unix socket to act as the caddy admin API endpoint
 - **ssh** (Block Set) (see [below for nested schema](#nestedblock--ssh))
 

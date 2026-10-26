@@ -15,47 +15,10 @@ However, this is not recommended as it is not secure.
 
 ### Bearer-token authentication
 
-For an admin endpoint that accepts bearer authentication, set
-`CADDY_BEARER_TOKEN` in the provider process environment and configure its HTTPS URL:
-
-```hcl
-provider "caddy" {
-  host = "https://localhost:2020"
-}
-```
-
-The optional, sensitive `bearer_token` provider argument takes precedence over
-`CADDY_BEARER_TOKEN`, including an explicit empty string (which disables bearer
-authentication). Omitted input with an unset or empty environment variable sends
-no Authorization header. Tokens must contain visible ASCII characters without
-whitespace; no JWT format or issuer is required. The provider sends
-`Authorization: Bearer <token>` on all API requests, including reads and retries.
-It does not issue, renew, or configure server-side acceptance of tokens.
-
-Use HTTPS for remote endpoints: standard certificate and hostname verification
-remains enabled. Bearer authentication also works with existing Unix/SSH
-transports; it does not replace SSH authentication or host-key checking. When a
-token is configured, redirects to a different scheme, host, or port are rejected
-before the redirected request is sent. Same-origin redirects remain supported.
-
-Prefer supplying the token through the environment rather than embedding it in
-HCL. `Sensitive` masks ordinary CLI presentation; it is **not encryption or magic
-secret storage**. Tokens placed in variables, saved plans, outputs, or other
-configuration can still be persisted by Terraform/OpenTofu. Protect environment
-access, plan/state files and logs, and avoid debug/trace logging with real tokens.
-Provider credentials are not copied into managed resource state. Authenticated
-HTTP error diagnostics include only the method, numeric status, and standard
-status text. Request failures report known redirect, timeout, cancellation, or
-TLS classifications and otherwise omit raw error details. Response bodies,
-server reason phrases, and redirect URLs are not included because they may echo
-credentials. Unauthenticated diagnostics are unchanged.
-
-A local-only HTTPS/OpenTofu regression test uses synthetic credentials and a
-temporary trusted certificate (requires Go and `tofu`, no registry installation):
-
-```sh
-CADDY_BEARER_TOFU_TEST=1 go test ./caddy -run '^TestBearerTokenOpenTofu$' -v -count=1
-```
+For an admin endpoint that accepts bearer authentication, configure an HTTPS
+`host` and supply the token through `CADDY_BEARER_TOKEN` or `bearer_token`.
+See the [provider documentation](docs/index.md#bearer-token-authentication) for
+configuration and credential handling.
 
 ### Unix Sockets
 
