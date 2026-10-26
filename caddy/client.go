@@ -17,4 +17,10 @@ type Client interface {
 	UpdateServerRoutes(id string, routes []caddyapi.Route) error
 	GetServer(id string) (*caddyapi.Server, error)
 	DeleteServer(id string) error
+
+	CreateRoute(serverName string, route caddyapi.Route) error
+	GetRouteByID(id string) (*caddyapi.Route, error)
+	UpdateRouteByID(id string, route caddyapi.Route) error
+	DeleteRouteByID(id string) error
+	GetServers() (map[string]caddyapi.Server, error)
 }
