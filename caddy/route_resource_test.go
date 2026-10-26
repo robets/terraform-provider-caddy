@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -39,6 +40,28 @@ func (fa *fakeAdmin) handle(w http.ResponseWriter, r *http.Request) {
 	defer fa.mu.Unlock()
 	fa.calls = append(fa.calls, r.Method+" "+r.URL.Path)
 	w.Header().Set("Content-Type", "application/json")
+	const tag = `"/config/apps/http/servers 0123456789abcdef"`
+	// This sequential fixture uses a fixed tag; conflict semantics are covered
+	// by API tests and the opt-in stock-Caddy integration tests.
+	if strings.HasPrefix(r.URL.Path, "/config/apps/http/servers/edge/routes/") {
+		if r.Header.Get("If-Match") != tag {
+			w.WriteHeader(412)
+			return
+		}
+		ids := []string{}
+		for id := range fa.routes {
+			if fa.under[id] {
+				ids = append(ids, id)
+			}
+		}
+		sort.Strings(ids)
+		index, err := strconv.Atoi(strings.TrimPrefix(r.URL.Path, "/config/apps/http/servers/edge/routes/"))
+		if err != nil || index < 0 || index >= len(ids) {
+			w.WriteHeader(404)
+			return
+		}
+		r.URL.Path = "/id/" + ids[index]
+	}
 
 	switch {
 	case r.Method == http.MethodPost && strings.HasPrefix(r.URL.Path, "/config/apps/http/servers/") && strings.HasSuffix(r.URL.Path, "/routes"):
@@ -92,6 +115,7 @@ func (fa *fakeAdmin) handle(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusMethodNotAllowed)
 		}
 	case r.Method == http.MethodGet && r.URL.Path == "/config/apps/http/servers":
+		w.Header().Set("ETag", tag)
 		ids := make([]string, 0, len(fa.routes))
 		for id := range fa.routes {
 			if fa.under[id] {
@@ -152,7 +176,7 @@ func TestRouteResourceCreateReadUpdateDelete(t *testing.T) {
 	// Update replaces the route in place by @id.
 	require.NoError(t, d.Set("handle", handleConfig("R2")))
 	require.NoError(t, res.Update(d, client))
-	assert.Contains(t, fa.calls, "PATCH /id/tf-route")
+	assert.Contains(t, fa.calls, "PATCH /config/apps/http/servers/edge/routes/0")
 	route, _ = fa.stored("tf-route")
 	assert.Equal(t, caddyapi.StaticResponse{Body: "R2"}, route.Handlers[0].Handle)
 

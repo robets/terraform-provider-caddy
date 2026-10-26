@@ -23,11 +23,12 @@ var caddyNameRegexp = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.\-]*$`)
 // Creation appends the route (carrying its stable @id) to the configured
 // server's routes array via a single POST; Caddy rejects a duplicate @id
 // with 400, so an existing route can never be clobbered on create.
-// Read/update/delete address the route by @id (GET/PATCH/DELETE /id/{id}),
-// replacing it in place. The shared routes array is never read, modified
-// and re-PUT as a whole, so roots can independently manage different
-// routes on the same server without clobbering each other or routes owned
-// configured outside this resource.
+// Read uses GET /id/{id}. Update/delete locate that @id in a verified
+// servers snapshot, then conditionally mutate only its concrete route index.
+// If-Match guards parent-array movement by other clients; 412 conflicts are
+// retried with a fresh snapshot up to a bounded limit. The shared array is
+// never re-PUT. This is accidental-mutation protection, not authorization or
+// a guarantee of successful convergence under contention/transport failures.
 //
 // Placement semantics: creation always appends (lowest match priority, so
 // existing routes keep precedence); updates preserve position.
@@ -150,8 +151,12 @@ func serverRouteUpdate(d *schema.ResourceData, m interface{}) error {
 func serverRouteDelete(d *schema.ResourceData, m interface{}) error {
 	c := m.(Client)
 
-	// DeleteRouteByID treats a remote 404 as success, so Delete is
-	// idempotent when the route already disappeared.
+	// Already removed from state: no remote mutation is needed.
+	if d.Id() == "" {
+		return nil
+	}
+	// Absence in a verified server-routes snapshot is success, so Delete
+	// is idempotent when the route already disappeared.
 	if err := c.DeleteRouteByID(d.Id()); err != nil {
 		return err
 	}

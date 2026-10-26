@@ -1,8 +1,12 @@
 package caddyapi
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
+	"regexp"
+	"strings"
 )
 
 // Route represents the Caddy Route object
@@ -48,37 +52,93 @@ func (c *Client) GetRouteByID(id string) (*Route, error) {
 	return resp.Result().(*Route), nil
 }
 
-// UpdateRouteByID replaces the route registered under the given @id in
-// place via PATCH /id/{id}, preserving its position in the routes array
-// and leaving every other route untouched. (POST /id/{id} is not used:
-// Caddy treats posting an already-registered @id as a duplicate ID and
-// answers 400.)
+// UpdateRouteByID replaces one top-level route in place, conditionally on a
+// snapshot containing its identity and position. See mutateRouteByID.
 func (c *Client) UpdateRouteByID(id string, route Route) error {
-	resp, err := c.client.R().SetBody(route).Patch(URLFromID(id))
-	if err != nil {
-		return fmt.Errorf("UpdateRouteByID: %w", err)
+	if route.ID != id || id == "" {
+		return fmt.Errorf("UpdateRouteByID: route identity must remain %q", id)
 	}
-	if resp.IsError() {
-		return fmt.Errorf("UpdateRouteByID: %w", StatusError{resp})
-	}
-	return nil
+	return c.mutateRouteByID(http.MethodPatch, id, &route)
 }
 
-// DeleteRouteByID removes the route registered under the given @id via
-// DELETE /id/{id}. A missing route (404) is not an error, so Delete is
-// idempotent.
+// DeleteRouteByID conditionally removes one top-level route. Absence in the
+// snapshot is success; mutation errors (including ambiguous transport errors)
+// are returned, not retried blindly.
 func (c *Client) DeleteRouteByID(id string) error {
-	resp, err := c.client.R().Delete(URLFromID(id))
-	if err != nil {
-		return fmt.Errorf("DeleteRouteByID: %w", err)
+	if id == "" {
+		return fmt.Errorf("DeleteRouteByID: empty route identity")
 	}
-	if resp.StatusCode() == http.StatusNotFound {
+	return c.mutateRouteByID(http.MethodDelete, id, nil)
+}
+
+const routeMutationAttempts = 8
+const routeServersPath = "/config/apps/http/servers"
+
+// Caddy's strong ETag contains the configuration path and a 64-bit xxhash.
+// Never send an empty, weak, wildcard, wrong-path, or malformed precondition.
+var routeServersETag = regexp.MustCompile(`^"/config/apps/http/servers [0-9a-f]{16}"$`)
+
+// mutateRouteByID deliberately avoids /id/: Caddy resolves IDs before taking
+// its mutation lock, so another client's deletion can shift the resolved index.
+// The servers snapshot includes every parent routes array and its ancestry.
+// Caddy checks its ETag under the same lock as the single-index mutation.
+// Only an explicit 412 is safe to retry, always with a new snapshot and index.
+func (c *Client) mutateRouteByID(method, id string, route *Route) error {
+	for attempt := 0; attempt < routeMutationAttempts; attempt++ {
+		resp, err := c.client.R().Get(routeServersPath)
+		if err != nil {
+			return fmt.Errorf("%s route %q snapshot: %w", method, id, err)
+		}
+		if resp.IsError() {
+			return fmt.Errorf("%s route %q snapshot: %w", method, id, StatusError{resp})
+		}
+		tag := resp.Header().Get("ETag")
+		if !routeServersETag.MatchString(tag) {
+			return fmt.Errorf("%s route %q: missing or invalid servers ETag", method, id)
+		}
+		// Decode identity only: foreign/plugin handlers need not fit our model.
+		var servers map[string]struct {
+			Routes []struct {
+				ID string `json:"@id"`
+			} `json:"routes"`
+		}
+		if err := json.Unmarshal(resp.Body(), &servers); err != nil {
+			return fmt.Errorf("%s route %q snapshot: %w", method, id, err)
+		}
+		target := ""
+		for name, server := range servers {
+			for i, candidate := range server.Routes {
+				if candidate.ID == id {
+					if target != "" || name == "." || name == ".." || strings.Contains(name, "/") {
+						return fmt.Errorf("%s route %q: ambiguous or unaddressable target", method, id)
+					}
+					target = fmt.Sprintf("%s/%s/routes/%d", routeServersPath, url.PathEscape(name), i)
+				}
+			}
+		}
+		if target == "" {
+			if method == http.MethodDelete {
+				return nil
+			}
+			return fmt.Errorf("%s route %q: not found in top-level server routes", method, id)
+		}
+		req := c.client.R().SetHeader("If-Match", tag)
+		if route != nil {
+			req.SetBody(*route)
+		}
+		resp, err = req.Execute(method, target)
+		if err != nil {
+			return fmt.Errorf("%s route %q: %w", method, id, err)
+		}
+		if resp.StatusCode() == http.StatusPreconditionFailed {
+			continue
+		}
+		if resp.IsError() {
+			return fmt.Errorf("%s route %q: %w", method, id, StatusError{resp})
+		}
 		return nil
 	}
-	if resp.IsError() {
-		return fmt.Errorf("DeleteRouteByID: %w", StatusError{resp})
-	}
-	return nil
+	return fmt.Errorf("%s route %q: conflict retry budget exhausted after %d attempts", method, id, routeMutationAttempts)
 }
 
 // GetServers fetches the map of HTTP servers with their inline routes.

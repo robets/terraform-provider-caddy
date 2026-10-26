@@ -77,11 +77,33 @@ func TestGetRouteByIDError(t *testing.T) {
 	assert.Error(t, err)
 }
 
+// mutationStub returns a verified identity snapshot before the mutation.
+func mutationStub(t *testing.T, status int) (*Client, *recordedCall) {
+	rec := &recordedCall{}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method == http.MethodGet {
+			w.Header().Set("ETag", snapshotTag)
+			if status == 404 {
+				io.WriteString(w, `{}`)
+			} else {
+				io.WriteString(w, snapshot)
+			}
+			return
+		}
+		b, _ := io.ReadAll(r.Body)
+		*rec = recordedCall{Method: r.Method, Path: r.URL.Path, Body: string(b)}
+		w.WriteHeader(status)
+	}))
+	t.Cleanup(srv.Close)
+	return NewClient(srv.URL, nil), rec
+}
+
 func TestUpdateRouteByID(t *testing.T) {
-	c, rec := stubServer(t, 200, "")
+	c, rec := mutationStub(t, 200)
 	require.NoError(t, c.UpdateRouteByID("tf-route", Route{ID: "tf-route", Handlers: []HandleMarshal{{Handle: StaticResponse{Body: "R2"}}}}))
 	assert.Equal(t, "PATCH", rec.Method)
-	assert.Equal(t, "/id/tf-route", rec.Path)
+	assert.Equal(t, "/config/apps/http/servers/edge/routes/1", rec.Path)
 	assert.Contains(t, rec.Body, `"@id":"tf-route"`)
 	assert.Contains(t, rec.Body, `"R2"`)
 }
@@ -92,14 +114,14 @@ func TestUpdateRouteByIDMissingIsError(t *testing.T) {
 }
 
 func TestDeleteRouteByID(t *testing.T) {
-	c, rec := stubServer(t, 200, "")
+	c, rec := mutationStub(t, 200)
 	require.NoError(t, c.DeleteRouteByID("tf-route"))
 	assert.Equal(t, "DELETE", rec.Method)
-	assert.Equal(t, "/id/tf-route", rec.Path)
+	assert.Equal(t, "/config/apps/http/servers/edge/routes/1", rec.Path)
 }
 
 func TestDeleteRouteIDMissingIsIdempotent(t *testing.T) {
-	c, _ := stubServer(t, 404, `{"error":"not found"}`)
+	c, _ := mutationStub(t, 404)
 	assert.NoError(t, c.DeleteRouteByID("gone"))
 }
 
