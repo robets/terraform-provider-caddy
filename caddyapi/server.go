@@ -33,7 +33,7 @@ func (c *Client) CreateServer(name string, server Server) (string, error) {
 
 	resp, err := c.client.R().SetBody(server).Put(URLFromID(id))
 	if err != nil {
-		return "", fmt.Errorf("CreateServer: %w", err)
+		return "", fmt.Errorf("CreateServer: %w", c.safeError(err))
 	}
 	if resp.IsError() {
 		return "", fmt.Errorf("CreateServer: %w", StatusError{resp})
@@ -48,7 +48,7 @@ func (c *Client) CreateServer(name string, server Server) (string, error) {
 func (c *Client) UpdateServerListen(id string, listen []string) error {
 	resp, err := c.client.R().SetBody(listen).Patch(URLFromID(id + "/listen"))
 	if err != nil {
-		return fmt.Errorf("UpdateServerListen: %w", err)
+		return fmt.Errorf("UpdateServerListen: %w", c.safeError(err))
 	}
 	if resp.IsError() {
 		return fmt.Errorf("UpdateServerListen: %w", StatusError{resp})
@@ -59,7 +59,7 @@ func (c *Client) UpdateServerListen(id string, listen []string) error {
 func (c *Client) UpdateServerRoutes(id string, routes []Route) error {
 	resp, err := c.client.R().SetBody(routes).Patch(URLFromID(id + "/routes"))
 	if err != nil {
-		return fmt.Errorf("UpdateServerRoutes: %w", err)
+		return fmt.Errorf("UpdateServerRoutes: %w", c.safeError(err))
 	}
 	if resp.IsError() {
 		return fmt.Errorf("UpdateServerRoutes: %w", StatusError{resp})
@@ -70,7 +70,7 @@ func (c *Client) UpdateServerRoutes(id string, routes []Route) error {
 func (c *Client) GetServer(id string) (*Server, error) {
 	resp, err := c.client.R().SetResult(&Server{}).Get(URLFromID(id))
 	if err != nil {
-		return nil, fmt.Errorf("GetServer: %w", err)
+		return nil, fmt.Errorf("GetServer: %w", c.safeError(err))
 	}
 	if resp.IsError() {
 		return nil, fmt.Errorf("GetServer: %w", StatusError{resp})
@@ -81,7 +81,7 @@ func (c *Client) GetServer(id string) (*Server, error) {
 func (c *Client) DeleteServer(id string) error {
 	resp, err := c.client.R().Delete(URLFromID(id))
 	if err != nil {
-		return fmt.Errorf("DeleteServer: %w", err)
+		return fmt.Errorf("DeleteServer: %w", c.safeError(err))
 	}
 	if resp.IsError() {
 		return fmt.Errorf("DeleteServer: %w", StatusError{resp})

@@ -52,7 +52,11 @@ masks normal CLI presentation; it is not encryption or magic secret storage.
 Variables, saved plans, outputs, state and debug/trace logs may still persist
 secrets; protect them and avoid debug/trace logging with real tokens. The
 provider does not copy its token into managed resource state. Authenticated HTTP
-error diagnostics omit response bodies, since endpoints may echo credentials.
+error diagnostics include only the method, numeric status, and standard status
+text. Request failures report known redirect, timeout, cancellation, or TLS
+classifications and otherwise omit raw error details. Response bodies, server
+reason phrases, and redirect URLs are not included because they may echo
+credentials. Unauthenticated diagnostics are unchanged.
 
 ### Unix Sockets
 

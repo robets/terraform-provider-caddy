@@ -27,7 +27,7 @@ type Route struct {
 func (c *Client) CreateRoute(serverName string, route Route) error {
 	resp, err := c.client.R().SetBody(route).Post(URLFromID("@config/apps/http/servers/" + serverName + "/routes"))
 	if err != nil {
-		return fmt.Errorf("CreateRoute: %w", err)
+		return fmt.Errorf("CreateRoute: %w", c.safeError(err))
 	}
 	if resp.IsError() {
 		return fmt.Errorf("CreateRoute: %w", StatusError{resp})
@@ -41,7 +41,7 @@ func (c *Client) CreateRoute(serverName string, route Route) error {
 func (c *Client) GetRouteByID(id string) (*Route, error) {
 	resp, err := c.client.R().SetResult(&Route{}).Get(URLFromID(id))
 	if err != nil {
-		return nil, fmt.Errorf("GetRouteByID: %w", err)
+		return nil, fmt.Errorf("GetRouteByID: %w", c.safeError(err))
 	}
 	if resp.StatusCode() == http.StatusNotFound {
 		return nil, nil
@@ -87,7 +87,7 @@ func (c *Client) mutateRouteByID(method, id string, route *Route) error {
 	for attempt := 0; attempt < routeMutationAttempts; attempt++ {
 		resp, err := c.client.R().Get(routeServersPath)
 		if err != nil {
-			return fmt.Errorf("%s route %q snapshot: %w", method, id, err)
+			return fmt.Errorf("%s route %q snapshot: %w", method, id, c.safeError(err))
 		}
 		if resp.IsError() {
 			return fmt.Errorf("%s route %q snapshot: %w", method, id, StatusError{resp})
@@ -103,7 +103,7 @@ func (c *Client) mutateRouteByID(method, id string, route *Route) error {
 			} `json:"routes"`
 		}
 		if err := json.Unmarshal(resp.Body(), &servers); err != nil {
-			return fmt.Errorf("%s route %q snapshot: %w", method, id, err)
+			return fmt.Errorf("%s route %q snapshot: %w", method, id, c.safeError(err))
 		}
 		target := ""
 		for name, server := range servers {
@@ -128,7 +128,7 @@ func (c *Client) mutateRouteByID(method, id string, route *Route) error {
 		}
 		resp, err = req.Execute(method, target)
 		if err != nil {
-			return fmt.Errorf("%s route %q: %w", method, id, err)
+			return fmt.Errorf("%s route %q: %w", method, id, c.safeError(err))
 		}
 		if resp.StatusCode() == http.StatusPreconditionFailed {
 			continue
@@ -146,7 +146,7 @@ func (c *Client) mutateRouteByID(method, id string, route *Route) error {
 func (c *Client) GetServers() (map[string]Server, error) {
 	resp, err := c.client.R().SetResult(&map[string]Server{}).Get(URLFromID("@config/apps/http/servers"))
 	if err != nil {
-		return nil, fmt.Errorf("GetServers: %w", err)
+		return nil, fmt.Errorf("GetServers: %w", c.safeError(err))
 	}
 	if resp.IsError() {
 		return nil, fmt.Errorf("GetServers: %w", StatusError{resp})

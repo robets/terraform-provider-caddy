@@ -44,7 +44,11 @@ secret storage**. Tokens placed in variables, saved plans, outputs, or other
 configuration can still be persisted by Terraform/OpenTofu. Protect environment
 access, plan/state files and logs, and avoid debug/trace logging with real tokens.
 Provider credentials are not copied into managed resource state. Authenticated
-HTTP error diagnostics omit response bodies to avoid disclosing echoed tokens.
+HTTP error diagnostics include only the method, numeric status, and standard
+status text. Request failures report known redirect, timeout, cancellation, or
+TLS classifications and otherwise omit raw error details. Response bodies,
+server reason phrases, and redirect URLs are not included because they may echo
+credentials. Unauthenticated diagnostics are unchanged.
 
 A local-only HTTPS/OpenTofu regression test uses synthetic credentials and a
 temporary trusted certificate (requires Go and `tofu`, no registry installation):
