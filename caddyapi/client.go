@@ -47,6 +47,34 @@ func NewUnixClient(socket string, dial DialFunc) *Client {
 	}
 }
 
+// SetBearerToken configures authentication on every request, including snapshot
+// reads and conditional mutation retries. Call before using the client.
+func (c *Client) SetBearerToken(token string) error {
+	for i := 0; i < len(token); i++ {
+		if token[i] <= ' ' || token[i] >= 0x7f {
+			return fmt.Errorf("bearer_token must contain only visible ASCII characters without whitespace")
+		}
+	}
+	if token == "" {
+		return nil
+	}
+	c.client.SetHeader("Authorization", "Bearer "+token)
+	// net/http's default policy can retain Authorization across different
+	// ports and subdomains. Refuse any origin change instead, including HTTPS
+	// downgrades. The header is set before redirects, never by a transport hook.
+	c.client.GetClient().CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		if len(via) >= 10 {
+			return fmt.Errorf("stopped after 10 redirects")
+		}
+		origin := via[0].URL
+		if !strings.EqualFold(req.URL.Scheme, origin.Scheme) || !strings.EqualFold(req.URL.Host, origin.Host) {
+			return fmt.Errorf("refusing authenticated redirect to a different origin")
+		}
+		return nil
+	}
+	return nil
+}
+
 // EnforceExists ensures that the path exists. If it doesn't currently exist, it sets it to be empty
 func (c *Client) EnforceExists(id string) error {
 	split := strings.Split(id, "/")
@@ -91,6 +119,11 @@ type StatusError struct {
 
 func (s StatusError) Error() string {
 	str := fmt.Sprintf("%s %s: %d %s", s.resp.Request.Method, s.resp.Request.URL, s.resp.StatusCode(), s.resp.Status())
+	// Authenticated endpoints can echo credentials in an error body. Do not
+	// copy those bodies into Terraform diagnostics or logs.
+	if s.resp.Request.Header.Get("Authorization") != "" {
+		return str
+	}
 	if body := s.resp.Body(); len(body) > 0 {
 		return fmt.Sprintf("%s - body: [%s]", str, string(body))
 	}

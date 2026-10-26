@@ -32,5 +32,13 @@ func Provider() *schema.Provider {
 	// match/handle structures.
 	p.ResourcesMap["caddy_server_route"] = ServerRouteResource()
 
+	p.Schema["bearer_token"] = &schema.Schema{
+		Type:        schema.TypeString,
+		Optional:    true,
+		Sensitive:   true,
+		DefaultFunc: schema.EnvDefaultFunc("CADDY_BEARER_TOKEN", ""),
+		Description: "Bearer token for the admin API. Defaults to CADDY_BEARER_TOKEN when omitted; an explicit empty string disables authentication.",
+	}
+
 	return p
 }
